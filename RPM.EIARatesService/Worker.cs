@@ -1,9 +1,16 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using RPM.EIARatesService.ApiClients;
+using RPM.EIARatesService.Constants;
 using RPM.EIARatesService.Data;
+using RPM.EIARatesService.Exceptions;
+using RPM.EIARatesService.Models;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,26 +20,34 @@ namespace RPM.EIARatesService
     public class TimedWorker : IHostedService, IDisposable
     {
         private readonly ILogger<TimedWorker> _logger;
-        //private readonly IMyService _myService;
+        private readonly IServiceScopeFactory _serviceScopeFactory;
+        private readonly IConfiguration _configuration;
         private Timer _timer;
-        private static object _lock = new object();
-        private int _counter = 0;
+        private IRatesAPI _ratesApi;
 
-        public TimedWorker(ILogger<TimedWorker> logger)
+        public TimedWorker(ILogger<TimedWorker> logger, IServiceScopeFactory serviceScopeFactory, IConfiguration configuration, IRatesAPI ratesApi)
         {
             _logger = logger;
-            //_myService = myService;
+            _serviceScopeFactory = serviceScopeFactory;
+            _configuration = configuration;
+            _ratesApi = ratesApi;
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
-            _timer = new Timer(DoWork, null, TimeSpan.Zero, TimeSpan.FromSeconds(60));
+            _logger.LogInformation("Service is starting.");
+            var taskExecutionDelayInMins = Convert.ToInt32(_configuration.GetValue(typeof(int), "TaskExecutionDelayInMinutes"));
+            _logger.LogInformation($"Task will execute every {taskExecutionDelayInMins} minute[s]");
+            _timer = new Timer(DoWork, null, TimeSpan.Zero,
+                TimeSpan.FromMinutes(taskExecutionDelayInMins));
+
             return Task.CompletedTask;
         }
 
         public Task StopAsync(CancellationToken cancellationToken)
         {
             _timer?.Change(Timeout.Infinite, 0);
+            _logger.LogInformation("Service is stopped.");
             return Task.CompletedTask;
         }
 
@@ -41,22 +56,40 @@ namespace RPM.EIARatesService
             _timer?.Dispose();
         }
 
-        private void DoWork(object state)
+        private async void DoWork(object state)
         {
-            _logger.LogDebug($"Try to execute next iteration {_counter + 1} of DoWork ");
-            if (Monitor.TryEnter(_lock))
+            try
             {
-                try
+                _logger.LogInformation($"Task execution started at: {DateTime.Now}");
+
+                var days = Convert.ToInt32(_configuration.GetValue(typeof(int), "RatesDurationInDays"));
+                var lastDate = DateTime.Today.AddDays(days * (-1));
+                var rateResponse = await _ratesApi.GetRates();
+
+                if (rateResponse == null || rateResponse.Series == null || rateResponse.Series.Count == 0)
+                    throw new Exception(SystemConstants.Error_No_Series);
+
+                var rates = rateResponse.Series.First().Data.Select(r => new Rate
                 {
-                    _logger.LogDebug($"Running DoWork iteration {_counter}");
-                    //_myService.DoWorkAsync().Wait();
-                    _logger.LogDebug($"DoWork {_counter} finished, will start iteration {_counter + 1}");
-                }
-                finally
+                    Date = DateTime.ParseExact(r[0].ToString(), SystemConstants.EIADateFormat, CultureInfo.InvariantCulture),
+                    Price = Convert.ToDecimal(r[1].ToString())
+                }).Where(a => a.Date >= lastDate);
+
+                using (var scope = _serviceScopeFactory.CreateScope())
                 {
-                    _counter++;
-                    Monitor.Exit(_lock);
+                    var minimumDateForComparison = rates.Min(x => x.Date);
+                    var dbContext = scope.ServiceProvider.GetRequiredService<EIADbContext>();
+                    var existingRates = dbContext.Rates.Where(a => a.Date >= minimumDateForComparison);
+                    var ratesToAdd = rates.Where(x => !existingRates.Any(y => y.Date == x.Date)).ToList();
+                    await dbContext.Rates.AddRangeAsync(ratesToAdd);
+                    await dbContext.SaveChangesAsync();
                 }
+
+                _logger.LogInformation($"Task execution completed at: {DateTime.Now}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Exception occurred while executing the task: {ex.Message}", ex);
             }
         }
     }

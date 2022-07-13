@@ -13,9 +13,6 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="5.0.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="ApiClients\" />
+    <PackageReference Include="RestSharp" Version="108.0.1" />
   </ItemGroup>
 </Project>

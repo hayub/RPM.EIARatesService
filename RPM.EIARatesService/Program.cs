@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using RestSharp;
+using RPM.EIARatesService.ApiClients;
 using RPM.EIARatesService.Constants;
 using RPM.EIARatesService.Data;
 using System;
@@ -30,7 +32,8 @@ namespace RPM.EIARatesService
                     var optionsBuilder = new DbContextOptionsBuilder<EIADbContext>().UseSqlServer(conString);
 
                     services.AddScoped<EIADbContext>(db => new EIADbContext(optionsBuilder.Options, configuration));
-
+                    services.AddTransient<RestClient, RestClient>();
+                    services.AddSingleton<IRatesAPI, RatesAPI>();
                     services.AddHostedService<TimedWorker>();
                 });
 

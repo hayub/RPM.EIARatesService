@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace RPM.EIARatesService.ViewModels
 {
     // Root myDeserializedClass = JsonSerializer.Deserialize<Root>(myJsonResponse);
-    public class EIAResponse
+    public class EIAResponseVM
     {
         [JsonPropertyName("request")]
         public Request Request { get; set; }
@@ -62,10 +62,10 @@ namespace RPM.EIARatesService.ViewModels
         public string End { get; set; }
 
         [JsonPropertyName("updated")]
-        public DateTime Updated { get; set; }
+        public string Updated { get; set; }
 
         [JsonPropertyName("data")]
-        public List<List<string>> Data { get; set; }
+        public List<List<object>> Data { get; set; }
     }
 
 
