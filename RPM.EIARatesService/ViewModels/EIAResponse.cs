@@ -1,10 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace RPM.EIARatesService.ViewModels
 {
-    // Root myDeserializedClass = JsonSerializer.Deserialize<Root>(myJsonResponse);
+    /// <summary>
+    /// EIA API Response for Rates. Extracted from the JSON Response via https://json2csharp.com/
+    /// </summary>
     public class EIAResponseVM
     {
         [JsonPropertyName("request")]

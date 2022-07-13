@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -6,7 +5,6 @@ using Microsoft.Extensions.Logging;
 using RPM.EIARatesService.ApiClients;
 using RPM.EIARatesService.Constants;
 using RPM.EIARatesService.Data;
-using RPM.EIARatesService.Exceptions;
 using RPM.EIARatesService.Models;
 using System;
 using System.Collections.Generic;
@@ -17,15 +15,15 @@ using System.Threading.Tasks;
 
 namespace RPM.EIARatesService
 {
-    public class TimedWorker : IHostedService, IDisposable
+    public class RatesWorker : IHostedService, IDisposable
     {
-        private readonly ILogger<TimedWorker> _logger;
+        private readonly ILogger<RatesWorker> _logger;
         private readonly IServiceScopeFactory _serviceScopeFactory;
         private readonly IConfiguration _configuration;
         private Timer _timer;
         private IRatesAPI _ratesApi;
 
-        public TimedWorker(ILogger<TimedWorker> logger, IServiceScopeFactory serviceScopeFactory, IConfiguration configuration, IRatesAPI ratesApi)
+        public RatesWorker(ILogger<RatesWorker> logger, IServiceScopeFactory serviceScopeFactory, IConfiguration configuration, IRatesAPI ratesApi)
         {
             _logger = logger;
             _serviceScopeFactory = serviceScopeFactory;
@@ -62,14 +60,15 @@ namespace RPM.EIARatesService
             {
                 _logger.LogInformation($"Task execution started at: {DateTime.Now}");
 
-                var days = Convert.ToInt32(_configuration.GetValue(typeof(int), "RatesDurationInDays"));
-                var lastDate = DateTime.Today.AddDays(days * (-1));
-                var rateResponse = await _ratesApi.GetRates();
+                int days = Convert.ToInt32(_configuration.GetValue(typeof(int), "RatesDurationInDays"));
+                DateTime lastDate = DateTime.Today.AddDays(days * (-1));
+                var rateResponse = await _ratesApi.GetRatesAsync();
 
                 if (rateResponse == null || rateResponse.Series == null || rateResponse.Series.Count == 0)
                     throw new Exception(SystemConstants.Error_No_Series);
 
-                var rates = rateResponse.Series.First().Data.Select(r => new Rate
+                // Parsing rates data and getting rate for last N Days
+                IEnumerable<Rate> rates = rateResponse.Series.First().Data.Select(r => new Rate
                 {
                     Date = DateTime.ParseExact(r[0].ToString(), SystemConstants.EIADateFormat, CultureInfo.InvariantCulture),
                     Price = Convert.ToDecimal(r[1].ToString())
@@ -77,12 +76,14 @@ namespace RPM.EIARatesService
 
                 using (var scope = _serviceScopeFactory.CreateScope())
                 {
+                    // For finding duplicate rates from existing rates.
                     var minimumDateForComparison = rates.Min(x => x.Date);
                     var dbContext = scope.ServiceProvider.GetRequiredService<EIADbContext>();
-                    var existingRates = dbContext.Rates.Where(a => a.Date >= minimumDateForComparison);
-                    var ratesToAdd = rates.Where(x => !existingRates.Any(y => y.Date == x.Date)).ToList();
+                    var existingRates = dbContext.Rates.Where(a => a.Date >= minimumDateForComparison).ToList();
+                    var ratesToAdd = rates.Where(x => !existingRates.Any(y => y.Date == x.Date));
                     await dbContext.Rates.AddRangeAsync(ratesToAdd);
-                    await dbContext.SaveChangesAsync();
+                    var recordsCount = await dbContext.SaveChangesAsync();
+                    _logger.LogInformation($"{recordsCount} new record[s] added");
                 }
 
                 _logger.LogInformation($"Task execution completed at: {DateTime.Now}");

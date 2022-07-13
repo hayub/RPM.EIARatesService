@@ -3,9 +3,6 @@ using RestSharp;
 using RPM.EIARatesService.Constants;
 using RPM.EIARatesService.ViewModels;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace RPM.EIARatesService.ApiClients
@@ -20,13 +17,12 @@ namespace RPM.EIARatesService.ApiClients
             _restClient = restClient;
             _restClient.Options.BaseUrl = new Uri(SystemConstants.EIAAPIBaseURL);
         }
-        public async Task<EIAResponseVM> GetRates()
+        public async Task<EIAResponseVM> GetRatesAsync()
         {
             try
             {
                 var request = new RestRequest($"series/?api_key={SystemConstants.EIA_API_Key}&series_id=PET.EMD_EPD2D_PTE_NUS_DPG.W");
                 _restClient.Options.ThrowOnAnyError = true;
-                _logger.LogDebug($"Sending request to EIA: {request.Resource}", request.Resource);
                 var content = await _restClient.GetAsync<EIAResponseVM>(request);
                 _logger.LogDebug("Response from EIA API:", content);
                 return content;

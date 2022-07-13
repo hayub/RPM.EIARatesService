@@ -9,6 +9,6 @@ namespace RPM.EIARatesService.ApiClients
 {
     public interface IRatesAPI
     {
-        Task<EIAResponseVM> GetRates();
+        Task<EIAResponseVM> GetRatesAsync();
     }
 }

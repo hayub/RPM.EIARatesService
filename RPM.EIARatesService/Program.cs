@@ -7,9 +7,6 @@ using RPM.EIARatesService.ApiClients;
 using RPM.EIARatesService.Constants;
 using RPM.EIARatesService.Data;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace RPM.EIARatesService
 {
@@ -28,13 +25,11 @@ namespace RPM.EIARatesService
                 {
                     IConfiguration configuration = hostContext.Configuration;
                     var conString = configuration.GetConnectionString(SystemConstants.EIAConnectionStringName);
-
                     var optionsBuilder = new DbContextOptionsBuilder<EIADbContext>().UseSqlServer(conString);
-
-                    services.AddScoped<EIADbContext>(db => new EIADbContext(optionsBuilder.Options, configuration));
+                    services.AddScoped(db => new EIADbContext(optionsBuilder.Options, configuration));
                     services.AddTransient<RestClient, RestClient>();
                     services.AddSingleton<IRatesAPI, RatesAPI>();
-                    services.AddHostedService<TimedWorker>();
+                    services.AddHostedService<RatesWorker>();
                 });
 
         private static void CreateDbIfNoneExist(IHost host)
@@ -46,7 +41,7 @@ namespace RPM.EIARatesService
                 try
                 {
                     var context = service.GetRequiredService<EIADbContext>();
-                    context.Database.EnsureCreated();
+                    context.Database.Migrate();
                 }
                 catch (Exception)
                 {
