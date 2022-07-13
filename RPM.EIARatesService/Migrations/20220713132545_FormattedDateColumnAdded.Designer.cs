@@ -3,15 +3,17 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using RPM.EIARatesService.Data;
 
 namespace RPM.EIARatesService.Migrations
 {
     [DbContext(typeof(EIADbContext))]
-    partial class EIADbContextModelSnapshot : ModelSnapshot
+    [Migration("20220713132545_FormattedDateColumnAdded")]
+    partial class FormattedDateColumnAdded
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

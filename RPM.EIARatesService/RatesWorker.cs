@@ -71,7 +71,8 @@ namespace RPM.EIARatesService
                 IEnumerable<Rate> rates = rateResponse.Series.First().Data.Select(r => new Rate
                 {
                     Date = DateTime.ParseExact(r[0].ToString(), SystemConstants.EIADateFormat, CultureInfo.InvariantCulture),
-                    Price = Convert.ToDecimal(r[1].ToString())
+                    Price = Convert.ToDecimal(r[1].ToString()),
+                    FormattedDate = r[0].ToString()
                 }).Where(a => a.Date >= lastDate);
 
                 using (var scope = _serviceScopeFactory.CreateScope())
@@ -80,7 +81,7 @@ namespace RPM.EIARatesService
                     var minimumDateForComparison = rates.Min(x => x.Date);
                     var dbContext = scope.ServiceProvider.GetRequiredService<EIADbContext>();
                     var existingRates = dbContext.Rates.Where(a => a.Date >= minimumDateForComparison).ToList();
-                    var ratesToAdd = rates.Where(x => !existingRates.Any(y => y.Date == x.Date));
+                    var ratesToAdd = rates.Where(x => !existingRates.Any(y => y.FormattedDate == x.FormattedDate));
                     await dbContext.Rates.AddRangeAsync(ratesToAdd);
                     var recordsCount = await dbContext.SaveChangesAsync();
                     _logger.LogInformation($"{recordsCount} new record[s] added");
